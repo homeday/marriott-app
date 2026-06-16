@@ -1,0 +1,116 @@
+pipeline {
+  agent any
+
+  environment {
+    IMAGE_NAME = 'ghcr.io/homeday/marriott'
+    IMAGE_TAG = "${env.BUILD_NUMBER}"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Install Dependencies') {
+      steps {
+        sh 'python -m pip install --upgrade pip'
+        sh 'pip install -r app/requirements.txt'
+      }
+    }
+
+    stage('Unit Smoke Test') {
+      steps {
+        sh 'python -c "from app import app; client = app.test_client(); assert client.get(\"/\").status_code == 200; assert client.get(\"/health/live\").status_code == 200; assert client.get(\"/health/ready\").status_code == 200"'
+      }
+    }
+
+    stage('Validate Kustomize Overlays') {
+      steps {
+        sh 'kustomize build k8s/overlays/dev > /dev/null'
+        sh 'kustomize build k8s/overlays/qa > /dev/null'
+        sh 'kustomize build k8s/overlays/perf > /dev/null'
+        sh 'kustomize build k8s/overlays/staging > /dev/null'
+        sh 'kustomize build k8s/overlays/production > /dev/null'
+      }
+    }
+
+    stage('Build Image') {
+      steps {
+        sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:dev app'
+      }
+    }
+
+    stage('Push Image') {
+      steps {
+        sh 'docker push ${IMAGE_NAME}:${IMAGE_TAG}'
+        sh 'docker push ${IMAGE_NAME}:dev'
+      }
+    }
+
+    stage('Deploy To Dev') {
+      steps {
+        script {
+          deployEnvironment('dev', 'api-dev', env.IMAGE_NAME, env.IMAGE_TAG)
+        }
+      }
+    }
+
+    stage('Deploy To QA') {
+      steps {
+        script {
+          deployEnvironment('qa', 'api-qa', env.IMAGE_NAME, env.IMAGE_TAG)
+        }
+      }
+    }
+
+    stage('Approve Perf') {
+      steps {
+        input message: 'Approve deployment to perf?', ok: 'Deploy Perf'
+      }
+    }
+
+    stage('Deploy To Perf') {
+      steps {
+        script {
+          deployEnvironment('perf', 'api-perf', env.IMAGE_NAME, env.IMAGE_TAG)
+        }
+      }
+    }
+
+    stage('Approve Staging') {
+      steps {
+        input message: 'Approve deployment to staging?', ok: 'Deploy Staging'
+      }
+    }
+
+    stage('Deploy To Staging') {
+      steps {
+        script {
+          deployEnvironment('staging', 'api-staging', env.IMAGE_NAME, env.IMAGE_TAG)
+        }
+      }
+    }
+
+    stage('Approve Production') {
+      steps {
+        input message: 'Approve deployment to production?', ok: 'Deploy Production'
+      }
+    }
+
+    stage('Deploy To Production') {
+      steps {
+        script {
+          deployEnvironment('production', 'api-production', env.IMAGE_NAME, env.IMAGE_TAG)
+        }
+      }
+    }
+  }
+}
+
+def deployEnvironment(String environmentName, String namespace, String imageName, String imageTag) {
+  sh "kubectl apply -k k8s/overlays/${environmentName}"
+  sh "kubectl -n ${namespace} set image deployment/api-server api-server=${imageName}:${imageTag}"
+  sh "kubectl -n ${namespace} rollout status deployment/api-server --timeout=180s"
+}

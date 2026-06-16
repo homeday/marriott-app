@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api-production
+  labels:
+    app.kubernetes.io/part-of: marriott-application
+    app.kubernetes.io/managed-by: kustomize
+    environment: production

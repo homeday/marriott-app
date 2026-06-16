@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        environment: production
+    spec:
+      containers:
+        - name: api-server
+          env:
+            - name: APP_ENV
+              value: production
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
