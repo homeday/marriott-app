@@ -21,6 +21,27 @@ spec:
         app.kubernetes.io/component: api
     spec:
       terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: db-init
+          image: ghcr.io/homeday/marriott:latest
+          imagePullPolicy: Always
+          command: ["python", "create_table.py"]
+          env:
+            - name: INIT_TABLE_NAME
+              value: "app_table"
+            - name: USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+          envFrom:
+            - configMapRef:
+                name: api-server-config
       containers:
         - name: api-server
           image: ghcr.io/homeday/marriott:latest
@@ -31,6 +52,18 @@ spec:
           env:
             - name: PORT
               value: "8080"
+            - name: INIT_TABLE_NAME
+              value: "app_table"
+            - name: USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
           envFrom:
             - configMapRef:
                 name: api-server-config

@@ -38,3 +38,7 @@ The Jenkins pipeline is defined in `app/Jenkinsfile`.
 - Deploys automatically to `dev` and `qa`.
 - Requires manual approval before `perf`, `staging`, and `production`.
 - Uses `kubectl rollout status` to block on failed rollouts.
+
+## Result
+![developer](developer.png)
+![production](production.png)
